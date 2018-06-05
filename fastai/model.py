@@ -124,6 +124,7 @@ def fit(model, data, n_epochs, opt, crit, metrics=None, callbacks=None, stepper=
     cnt_phases = np.array([ep * len(dat.trn_dl) for (ep,dat) in zip(n_epochs,data)]).cumsum()
     phase = 0
     for epoch in tnrange(tot_epochs, desc='Epoch'):
+        if phase >= len(n_epochs): break #Sometimes cumulated errors make this append.
         model_stepper.reset(True)
         cur_data = data[phase]
         if hasattr(cur_data, 'trn_sampler'): cur_data.trn_sampler.set_epoch(epoch)
@@ -204,7 +205,7 @@ def validate_next(stepper, metrics, val_iter):
     with no_grad_context():
         (*x,y) = val_iter.next()
         preds,l = stepper.evaluate(VV(x), VV(y))
-        res = [to_np(l)[0]]
+        res = [delistify(to_np(l))]
         res += [f(preds.data,y) for f in metrics]
     stepper.reset(True)
     return res
@@ -227,7 +228,7 @@ def get_prediction(x):
 
 def predict(m, dl):
     preda,_ = predict_with_targs_(m, dl)
-    return to_np(torch.cat(preda))
+    return np.concatenate(preda)
 
 def predict_batch(m, x):
     m.eval()
@@ -238,12 +239,12 @@ def predict_with_targs_(m, dl):
     m.eval()
     if hasattr(m, 'reset'): m.reset()
     res = []
-    for *x,y in iter(dl): res.append([get_prediction(m(*VV(x))),y])
+    for *x,y in iter(dl): res.append([get_prediction(to_np(m(*VV(x)))),to_np(y)])
     return zip(*res)
 
 def predict_with_targs(m, dl):
     preda,targa = predict_with_targs_(m, dl)
-    return to_np(torch.cat(preda)), to_np(torch.cat(targa))
+    return np.concatenate(preda), np.concatenate(targa)
 
 # From https://github.com/ncullen93/torchsample
 def model_summary(m, input_size):
